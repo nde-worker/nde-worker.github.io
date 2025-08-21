@@ -20,7 +20,8 @@ export default {
             width,
             height: height > 0 ? height : undefined,
             fit,
-            quality: 85, // default 85%
+            quality: 85,
+            format: "webp", // konsisten, ringan, SEO friendly
           },
         },
       });
