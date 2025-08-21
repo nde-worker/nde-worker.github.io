@@ -1,6 +1,7 @@
 name = "resize-image"
 main = "_worker.js"
 compatibility_date = "2025-08-21"
+account_id = "2e75e01025b363fad7d9afa9e4ac3c5c"
 
 [vars]
 ENVIRONMENT = "production"
