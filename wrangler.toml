@@ -1,5 +1,5 @@
 name = "resize-image"
-main = "src/index.js"
+main = "_worker.js"
 compatibility_date = "2025-08-21"
 
 [vars]
