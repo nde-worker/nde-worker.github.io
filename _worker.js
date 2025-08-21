@@ -1,41 +1,48 @@
 export default {
   async fetch(request) {
+    const url = new URL(request.url);
+    const imageUrl = url.searchParams.get("url");
+    const width = parseInt(url.searchParams.get("w") || "190");
+
+    if (!imageUrl) {
+      return new Response("No image URL specified.", { status: 400 });
+    }
+
     try {
-      const url = new URL(request.url);
+      // Ambil gambar asli
+      const res = await fetch(imageUrl);
+      if (!res.ok) return new Response("Failed to fetch image.", { status: res.status });
+      
+      const imgBlob = await res.blob();
 
-      // ambil parameter
-      const imageUrl = url.searchParams.get("url");
-      const width = parseInt(url.searchParams.get("w") || "300");
-      const height = parseInt(url.searchParams.get("h") || "0"); // optional
-      const fit = url.searchParams.get("fit") || "scale-down"; // cover, contain, fill, inside, outside
+      // Buat image bitmap
+      const imageBitmap = await createImageBitmap(imgBlob);
 
-      if (!imageUrl) {
-        return new Response("Missing url parameter", { status: 400 });
+      // Hitung ukuran baru
+      const origWidth = imageBitmap.width;
+      const origHeight = imageBitmap.height;
+      const newHeight = Math.round(origHeight * width / origWidth);
+
+      // Resize via OffscreenCanvas
+      const canvas = new OffscreenCanvas(width, newHeight);
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(imageBitmap, 0, 0, width, newHeight);
+
+      // Pilih format WebP jika browser support
+      const accept = request.headers.get("Accept") || "";
+      let contentType = "image/jpeg";
+      let blob;
+      if (accept.includes("image/webp")) {
+        blob = await canvas.convertToBlob({ type: "image/webp", quality: 0.8 });
+        contentType = "image/webp";
+      } else {
+        blob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.8 });
       }
 
-      // panggil gambar asli + resize via CF
-      const response = await fetch(imageUrl, {
-        cf: {
-          image: {
-            width,
-            height: height > 0 ? height : undefined,
-            fit,
-            quality: 85,
-            format: "webp", // konsisten, ringan, SEO friendly
-          },
-        },
-      });
-
-      // cek error
-      if (!response.ok) {
-        return new Response("Failed to fetch image", { status: response.status });
-      }
-
-      // return hasil gambar langsung
-      return new Response(response.body, {
+      return new Response(blob, {
         headers: {
-          "Content-Type": response.headers.get("Content-Type") || "image/jpeg",
-          "Cache-Control": "public, max-age=31536000", // cache 1 tahun
+          "Content-Type": contentType,
+          "Cache-Control": "public, max-age=2592000", // 30 hari
         },
       });
     } catch (err) {
