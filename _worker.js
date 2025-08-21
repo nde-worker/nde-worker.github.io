@@ -1,49 +1,44 @@
 export default {
   async fetch(request) {
-    const { pathname } = new URL(request.url);
+    try {
+      const url = new URL(request.url);
 
-    if (pathname.startsWith("/thumb-worker")) {
-      return handleThumbnail(request);
+      // ambil parameter
+      const imageUrl = url.searchParams.get("url");
+      const width = parseInt(url.searchParams.get("w") || "300");
+      const height = parseInt(url.searchParams.get("h") || "0"); // optional
+      const fit = url.searchParams.get("fit") || "scale-down"; // cover, contain, fill, inside, outside
+
+      if (!imageUrl) {
+        return new Response("Missing url parameter", { status: 400 });
+      }
+
+      // panggil gambar asli + resize via CF
+      const response = await fetch(imageUrl, {
+        cf: {
+          image: {
+            width,
+            height: height > 0 ? height : undefined,
+            fit,
+            quality: 85, // default 85%
+          },
+        },
+      });
+
+      // cek error
+      if (!response.ok) {
+        return new Response("Failed to fetch image", { status: response.status });
+      }
+
+      // return hasil gambar langsung
+      return new Response(response.body, {
+        headers: {
+          "Content-Type": response.headers.get("Content-Type") || "image/jpeg",
+          "Cache-Control": "public, max-age=31536000", // cache 1 tahun
+        },
+      });
+    } catch (err) {
+      return new Response("Error: " + err.message, { status: 500 });
     }
-
-    return new Response("OK");
   },
 };
-
-async function handleThumbnail(request) {
-  const url = new URL(request.url);
-  const imageUrl = url.searchParams.get("url");
-  const width = parseInt(url.searchParams.get("w")) || 150;
-  const height = parseInt(url.searchParams.get("h")) || width;
-  const quality = parseInt(url.searchParams.get("q")) || 60;
-
-  if (!imageUrl) return new Response("No image URL", { status: 400 });
-
-  try {
-    const resizedRes = await fetch(imageUrl, {
-      cf: {
-        image: {
-          width,
-          height,
-          fit: "cover",
-          format: "auto",
-          quality,
-          metadata: "none",
-        },
-      },
-    });
-
-    if (!resizedRes.ok) {
-      return new Response("Failed to fetch image", { status: 502 });
-    }
-
-    return new Response(resizedRes.body, {
-      headers: {
-        "Content-Type": resizedRes.headers.get("Content-Type") || "image/webp",
-        "Cache-Control": "public, max-age=2592000, s-maxage=2592000",
-      },
-    });
-  } catch (err) {
-    return new Response("Thumbnail generation failed: " + err.message, { status: 500 });
-  }
-}
